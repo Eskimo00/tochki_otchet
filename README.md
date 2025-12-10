@@ -9,10 +9,10 @@
 
 ## Стек
 - Python 3, tkinter (GUI), openpyxl (чтение/запись Excel).
-- PyInstaller для сборки exe (готовый файл: `dist/report_prohozhdeniya_tochek.exe`).
+- PyInstaller для сборки exe (готовый файл: `dist/tochki_otchet.exe`).
 
 ## Запуск exe (рекомендуется)
-1. Запустите `dist/report_prohozhdeniya_tochek.exe`.
+1. Запустите `dist/tochki_otchet.exe`.
 2. Выберите исходный `.xlsx`.
 3. Укажите место сохранения (или оставьте по умолчанию). Если файл есть, имя будет с суффиксом.
 4. Нажмите «Сформировать» и дождитесь сообщения о готовности.
