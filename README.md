@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Точки-отчет (GUI)
 
 Маленькая десктоп-утилита (Python 3 + tkinter + openpyxl), которая из исходного отчета Excel собирает итоговый файл:
@@ -23,6 +22,5 @@
 python -m pip install openpyxl
 python report_gui.py
 ```
-=======
+
 # tochki_otchet
->>>>>>> 2db506ff323f6e379edec82bb954c67abed3fbd2
