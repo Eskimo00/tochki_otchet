@@ -1,0 +1,17 @@
+# Python venv
+venv/
+env/
+.env/
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store
+Thumbs.db
