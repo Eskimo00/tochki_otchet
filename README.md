@@ -22,5 +22,3 @@
 python -m pip install openpyxl
 python report_gui.py
 ```
-
-# tochki_otchet
