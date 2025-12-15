@@ -32,6 +32,8 @@ class ModelResult:
     """Хранит агрегированные данные по модели."""
 
     name: str
+    group: str
+    total_points: Optional[int]
     counts: dict[int, int]
     sums: dict[int, timedelta]
 
@@ -115,6 +117,25 @@ def _extract_model_name(texts: Iterable[str]) -> Optional[str]:
     return None
 
 
+def _parse_model_info(model_name: str) -> tuple[str, str, Optional[int]]:
+    """Возвращает (группа, название без счетчика и префикса, всего точек)."""
+    name = model_name.strip()
+    total_points: Optional[int] = None
+
+    points_match = re.search(r"\((\d+)\)\s*$", name)
+    if points_match:
+        total_points = int(points_match.group(1))
+        name = name[: points_match.start()].rstrip()
+
+    group_match = re.match(r"(ТЭ|ТАН-\d+)", name, re.IGNORECASE)
+    group = group_match.group(1).upper() if group_match else (name.split()[0] if name else "")
+
+    if group:
+        name = re.sub(rf"^\s*{re.escape(group)}\s*[-:]?\s*", "", name, flags=re.IGNORECASE)
+
+    return group, name, total_points
+
+
 def _extract_point_index(text: str) -> Optional[int]:
     match = POINT_RE.search(text)
     if not match:
@@ -130,8 +151,11 @@ def _is_section_end(texts: Iterable[str]) -> bool:
 
 
 def _create_empty_result(model_name: str) -> ModelResult:
+    group, clean_name, total_points = _parse_model_info(model_name)
     return ModelResult(
-        name=model_name,
+        name=clean_name,
+        group=group,
+        total_points=total_points,
         counts={i: 0 for i in range(1, 9)},
         sums={i: timedelta(0) for i in range(1, 9)},
     )
@@ -168,7 +192,7 @@ def _build_workbook(results: List[ModelResult], period_date: str) -> Workbook:
     """Создаём Excel-файл с итогами."""
     out_wb = Workbook()
     out_ws = out_wb.active
-    headers = ["№ п/п", "Название объекта", "Дата"] + [
+    headers = ["№ п/п", "Хозяйство", "Название объекта", "Всего точек", "Дата"] + [
         f"Точка {i}" for i in range(1, 9)
     ]
     out_ws.append(headers)
@@ -181,25 +205,42 @@ def _build_workbook(results: List[ModelResult], period_date: str) -> Workbook:
 
     for row_idx, result in enumerate(results, start=2):
         line_no = row_idx - 1
-        line = [line_no, result.name, period_date]
+        line = [line_no, result.group, result.name, result.total_points or "", period_date]
         point_values = []
         for point_index in range(1, 9):
             count = result.counts[point_index]
+            total_duration = result.sums[point_index]
             if count == 0:
+                point_values.append("---")
+            elif total_duration.total_seconds() == 0:
                 point_values.append("нет")
             else:
-                duration = format_duration(result.sums[point_index])
+                duration = format_duration(total_duration)
                 point_values.append(f"({count}) / {duration}")
         line.extend(point_values)
         out_ws.append(line)
 
         for col_idx, cell in enumerate(out_ws[row_idx], start=1):
             cell.border = THIN_BORDER
-            if col_idx >= 4 or (col_idx < 4 and row_idx > 1):
+            if col_idx >= 6 or (col_idx < 6 and row_idx > 1):
                 cell.fill = FILL_BODY
-            if col_idx >= 4:
+            if col_idx >= 6:
                 value = cell.value
-                cell.fill = FILL_RED if value == "нет" else FILL_GREEN
+                cell.fill = FILL_RED if value in ("нет", "---") else FILL_GREEN
+
+    # Объединяем ячейки по хозяйству для наглядности
+    group_col = 2
+    start_row = 2
+    current_group = out_ws.cell(row=start_row, column=group_col).value if out_ws.max_row >= 2 else None
+    for r in range(3, out_ws.max_row + 1):
+        value = out_ws.cell(row=r, column=group_col).value
+        if value != current_group:
+            if current_group and r - start_row > 1:
+                out_ws.merge_cells(start_row=start_row, end_row=r - 1, start_column=group_col, end_column=group_col)
+            start_row = r
+            current_group = value
+    if current_group and out_ws.max_row - start_row + 1 > 1:
+        out_ws.merge_cells(start_row=start_row, end_row=out_ws.max_row, start_column=group_col, end_column=group_col)
 
     _auto_width(out_ws)
     return out_wb
@@ -246,7 +287,15 @@ def process_file(source: Path, dest: Path) -> Path:
 
     flush_model()
 
-    results.sort(key=lambda item: item.name.lower())
+    group_order = {"ТЭ": 0, "ТАН-1": 1, "ТАН-2": 2, "ТАН-3": 3}
+
+    results.sort(
+        key=lambda item: (
+            group_order.get(item.group.upper(), 100),
+            item.group.lower(),
+            item.name.lower(),
+        )
+    )
     out_wb = _build_workbook(results, period_date)
 
     dest = ensure_unique_path(dest)
